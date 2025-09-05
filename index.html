@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自发货运费计算工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#64748b',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        neutral: '#f1f5f9',
+                        'neutral-dark': '#334155',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+            }
+            .card-hover {
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .card-hover:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none;
+            }
+            .btn-primary {
+                @apply bg-primary text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 hover:bg-primary/90 hover:shadow-lg;
+            }
+            .btn-secondary {
+                @apply bg-white text-gray-700 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-all duration-200 hover:bg-gray-50 hover:shadow;
+            }
+            .section-transition {
+                transition: all 0.3s ease-in-out;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-inter text-gray-800">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- 页面标题 -->
+        <header class="text-center mb-8">
+            <h1 class="text-[clamp(1.75rem,4vw,2.5rem)] font-bold text-gray-800 mb-2">自发货运费计算工具</h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">精确计算多国售价与利润，优化您的跨境销售策略</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左侧：输入区域 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- 基本信息输入卡片 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fa fa-info-circle text-primary mr-2"></i>基本信息
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="purchasePrice" class="block text-sm font-medium text-gray-700 mb-1">采购价 (RMB)</label>
+                            <input type="number" id="purchasePrice" step="0.01" min="0" 
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                placeholder="请输入采购价">
+                        </div>
+                        
+                        <div>
+                            <label for="weight" class="block text-sm font-medium text-gray-700 mb-1">商品克重</label>
+                            <input type="number" id="weight" min="0" 
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                placeholder="请输入商品克重（克）">
+                        </div>
+                        
+                        <div>
+                            <label for="commission" class="block text-sm font-medium text-gray-700 mb-1">
+                                佣金 (%) <span class="text-gray-500 text-xs">(1-22.5之间)</span>
+                            </label>
+                            <input type="number" id="commission" step="0.1" min="1" max="22.5" value="20"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                placeholder="请输入佣金比例">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 利润设置卡片 -->
+                <div class="bg-white rounded-xl p-6 card-shadow">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <i class="fa fa-line-chart text-success mr-2"></i>利润设置
+                        </h2>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="profit" class="block text-sm font-medium text-gray-700 mb-1">期望利润 (RMB)</label>
+                            <input type="number" id="profit" step="0.01" min="0" value="0"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                placeholder="请输入期望利润">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 汇率设置卡片 -->
+                <div class="bg-white rounded-xl overflow-hidden card-shadow">
+                    <div class="p-6 border-b border-gray-100">
+                        <button id="exchangeRateToggle" class="flex justify-between items-center w-full text-left">
+                            <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                                <i class="fa fa-money text-warning mr-2"></i>汇率设置
+                            </h2>
+                            <i class="fa fa-chevron-down text-gray-500 transition-transform duration-300"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="exchangeRateContent" class="p-6 space-y-4 section-transition hidden">
+                        <div>
+                            <label for="usdToCny" class="block text-sm font-medium text-gray-700 mb-1">1 USD = ? CNY</label>
+                            <input type="number" id="usdToCny" step="0.0001" value="7.1359"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        
+                        <div>
+                            <label for="usdToMxn" class="block text-sm font-medium text-gray-700 mb-1">1 USD = ? MXN (墨西哥比索)</label>
+                            <input type="number" id="usdToMxn" step="0.0001" value="18.7139"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        
+                        <div>
+                            <label for="usdToBrl" class="block text-sm font-medium text-gray-700 mb-1">1 USD = ? BRL (巴西雷亚尔)</label>
+                            <input type="number" id="usdToBrl" step="0.0001" value="5.4447"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        
+                        <div>
+                            <label for="usdToClp" class="block text-sm font-medium text-gray-700 mb-1">1 USD = ? CLP (智利比索)</label>
+                            <input type="number" id="usdToClp" step="0.01" value="972.18"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                        
+                        <div>
+                            <label for="usdToCop" class="block text-sm font-medium text-gray-700 mb-1">1 USD = ? COP (哥伦比亚比索)</label>
+                            <input type="number" id="usdToCop" step="0.01" value="3984.5"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="flex gap-3">
+                    <button id="calculateBtn" class="btn-primary flex-1 flex items-center justify-center">
+                        <i class="fa fa-calculator mr-2"></i>计算售价
+                    </button>
+                    <button id="resetBtn" class="btn-secondary flex-1 flex items-center justify-center">
+                        <i class="fa fa-refresh mr-2"></i>重置
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右侧：结果区域 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 定价计算结果 -->
+                <div class="bg-white rounded-xl overflow-hidden card-shadow">
+                    <div class="p-6 border-b border-gray-100">
+                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <i class="fa fa-tag text-primary mr-2"></i>定价计算结果
+                        </h2>
+                    </div>
+                    
+                    <div id="pricingResults" class="p-6 space-y-6">
+                        <!-- 国家结果卡片将通过JS动态生成 -->
+                        <div class="text-center text-gray-500 py-12">
+                            <i class="fa fa-calculator text-4xl mb-3 opacity-30"></i>
+                            <p>请输入商品信息并点击"计算售价"按钮</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 反向计算：由售价推利润 -->
+                <div class="bg-white rounded-xl overflow-hidden card-shadow">
+                    <div class="p-6 border-b border-gray-100">
+                        <button id="reverseCalculationToggle" class="flex justify-between items-center w-full text-left">
+                            <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                                <i class="fa fa-exchange text-secondary mr-2"></i>反向计算：由售价推利润
+                            </h2>
+                            <i class="fa fa-chevron-down text-gray-500 transition-transform duration-300"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="reverseCalculationContent" class="p-6 space-y-6 section-transition hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- 墨西哥 -->
+                            <div class="space-y-3">
+                                <label class="block text-sm font-medium text-gray-700">墨西哥售价 (MXN)</label>
+                                <input type="number" id="mxnPrice" step="0.01" min="0"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                    placeholder="输入墨西哥售价">
+                            </div>
+                            
+                            <!-- 巴西 -->
+                            <div class="space-y-3">
+                                <label class="block text-sm font-medium text-gray-700">巴西售价 (BRL)</label>
+                                <input type="number" id="brlPrice" step="0.01" min="0"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                    placeholder="输入巴西售价">
+                            </div>
+                            
+                            <!-- 智利 -->
+                            <div class="space-y-3">
+                                <label class="block text-sm font-medium text-gray-700">智利售价 (CLP)</label>
+                                <input type="number" id="clpPrice" step="0.01" min="0"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                    placeholder="输入智利售价">
+                            </div>
+                            
+                            <!-- 哥伦比亚 -->
+                            <div class="space-y-3">
+                                <label class="block text-sm font-medium text-gray-700">哥伦比亚售价 (COP)</label>
+                                <input type="number" id="copPrice" step="0.01" min="0"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                    placeholder="输入哥伦比亚售价">
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-center pt-2">
+                            <button id="calculateProfitBtn" class="btn-primary flex items-center">
+                                <i class="fa fa-calculator mr-2"></i>计算利润
+                            </button>
+                        </div>
+                        
+                        <div id="profitResults" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            <!-- 利润结果将通过JS动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 客服联系方式 -->
+    <div id="customerService" class="fixed bottom-6 right-6 z-50">
+        <button id="serviceToggle" class="bg-primary text-white p-3 rounded-full shadow-lg hover:bg-primary/90 transition-all">
+            <i class="fa fa-weixin text-xl"></i>
+        </button>
+        <div id="serviceContent" class="hidden bg-white rounded-lg shadow-xl p-4 w-64 ml-auto mt-2 card-shadow">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-medium text-gray-800">客服联系方式</h3>
+                <button id="closeService" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                <span class="text-gray-700">微信号：<strong>realanls</strong></span>
+                <button id="copyWechat" class="text-primary hover:text-primary/80 transition-colors">
+                    <i class="fa fa-copy"></i> 复制
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 运费模板数据
+        const shippingTemplates = {
+            mexico: {
+                freeShippingThreshold: 299, // MXN
+                aTemplate: [
+                    { range: [0, 0.1], cost: 3.40 },
+                    { range: [0.1, 0.2], cost: 4.59 },
+                    { range: [0.2, 0.3], cost: 5.83 },
+                    { range: [0.3, 0.4], cost: 7.28 },
+                    { range: [0.4, 0.5], cost: 8.48 },
+                    { range: [0.5, 0.6], cost: 10.10 },
+                    { range: [0.6, 0.7], cost: 11.46 },
+                    { range: [0.7, 0.8], cost: 12.62 },
+                    { range: [0.8, 0.9], cost: 13.88 },
+                    { range: [0.9, 1], cost: 14.75 },
+                    { range: [1, 1.5], cost: 18.64 },
+                    { range: [1.5, 2], cost: 25.80 },
+                    { range: [2, 3], cost: 44.23 },
+                    { range: [3, 4], cost: 51.72 },
+                    { range: [4, 5], cost: 60.33 },
+                    { range: [5, 6], cost: 76.23 },
+                    { range: [6, 7], cost: 92.12 },
+                    { range: [7, 8], cost: 108.01 },
+                    { range: [8, 9], cost: 123.90 },
+                    { range: [9, 10], cost: 139.79 },
+                    { range: [10, 11], cost: 155.69 },
+                    { range: [11, 12], cost: 171.58 },
+                    { range: [12, 13], cost: 187.47 },
+                    { range: [13, 14], cost: 203.36 },
+                    { range: [14, 15], cost: 219.25 }
+                ],
+                bTemplate: [
+                    { range: [0, 0.1], cost: 1 },
+                    { range: [0.1, 0.2], cost: 1 },
+                    { range: [0.2, 0.3], cost: 1 },
+                    { range: [0.3, 0.4], cost: 1.5 },
+                    { range: [0.4, 0.5], cost: 1.5 },
+                    { range: [0.5, 0.6], cost: 3 },
+                    { range: [0.6, 0.7], cost: 3 },
+                    { range: [0.7, 0.8], cost: 3 },
+                    { range: [0.8, 0.9], cost: 5 },
+                    { range: [0.9, 1], cost: 5 },
+                    { range: [1, 1.5], cost: 10 },
+                    { range: [1.5, 2], cost: 20 }
+                ]
+            },
+            brazil: {
+                freeShippingThreshold: 79, // BRL
+                aTemplate: [
+                    { range: [0, 0.1], cost: 4.63 },
+                    { range: [0.1, 0.2], cost: 5.50 },
+                    { range: [0.2, 0.3], cost: 8.31 },
+                    { range: [0.3, 0.4], cost: 8.60 },
+                    { range: [0.4, 0.5], cost: 10.93 },
+                    { range: [0.5, 0.6], cost: 11.30 },
+                    { range: [0.6, 0.7], cost: 13.43 },
+                    { range: [0.7, 0.8], cost: 13.63 },
+                    { range: [0.8, 0.9], cost: 16.10 },
+                    { range: [0.9, 1], cost: 16.47 },
+                    { range: [1, 1.5], cost: 20.06 },
+                    { range: [1.5, 2], cost: 26.37 },
+                    { range: [2, 3], cost: 39.42 },
+                    { range: [3, 4], cost: 42.56 },
+                    { range: [4, 5], cost: 52.44 },
+                    { range: [5, 6], cost: 79.67 },
+                    { range: [6, 7], cost: 97.90 },
+                    { range: [7, 8], cost: 111.26 },
+                    { range: [8, 9], cost: 124.62 },
+                    { range: [9, 10], cost: 137.98 },
+                    { range: [10, 11], cost: 151.35 },
+                    { range: [11, 12], cost: 164.71 },
+                    { range: [12, 13], cost: 178.07 },
+                    { range: [13, 14], cost: 191.43 },
+                    { range: [14, 15], cost: 204.79 }
+                ],
+                bTemplate: [
+                    { range: [0, 0.1], cost: 1 },
+                    { range: [0.1, 0.2], cost: 1 },
+                    { range: [0.2, 0.3], cost: 1 },
+                    { range: [0.3, 0.4], cost: 1.5 },
+                    { range: [0.4, 0.5], cost: 1.5 },
+                    { range: [0.5, 0.6], cost: 3 },
+                    { range: [0.6, 0.7], cost: 3 },
+                    { range: [0.7, 0.8], cost: 3 },
+                    { range: [0.8, 0.9], cost: 5 },
+                    { range: [0.9, 1], cost: 5 },
+                    { range: [1, 1.5], cost: 10 },
+                    { range: [1.5, 2], cost: 20 }
+                ]
+            },
+            chile: {
+                freeShippingThreshold: 15650, // CLP
+                aTemplate: [
+                    { range: [0, 0.1], cost: 3.99 },
+                    { range: [0.1, 0.2], cost: 5.03 },
+                    { range: [0.2, 0.3], cost: 6.35 },
+                    { range: [0.3, 0.4], cost: 7.85 },
+                    { range: [0.4, 0.5], cost: 9.13 },
+                    { range: [0.5, 0.6], cost: 10.01 },
+                    { range: [0.6, 0.7], cost: 11.22 },
+                    { range: [0.7, 0.8], cost: 11.79 },
+                    { range: [0.8, 0.9], cost: 13.34 },
+                    { range: [0.9, 1], cost: 13.97 },
+                    { range: [1, 1.5], cost: 18.47 },
+                    { range: [1.5, 2], cost: 25.06 },
+                    { range: [2, 3], cost: 46.11 },
+                    { range: [3, 4], cost: 55.18 },
+                    { range: [4, 5], cost: 68.98 },
+                    { range: [5, 6], cost: 82.68 },
+                    { range: [6, 7], cost: 96.38 },
+                    { range: [7, 8], cost: 110.08 },
+                    { range: [8, 9], cost: 123.78 },
+                    { range: [9, 10], cost: 137.48 },
+                    { range: [10, 11], cost: 151.18 },
+                    { range: [11, 12], cost: 164.88 },
+                    { range: [12, 13], cost: 178.58 },
+                    { range: [13, 14], cost: 192.28 },
+                    { range: [14, 15], cost: 205.98 }
+                ],
+                bTemplate: [
+                    { range: [0, 0.1], cost: 1650 }, // CLP
+                    { range: [0.1, 0.2], cost: 1650 },
+                    { range: [0.2, 0.3], cost: 1650 },
+                    { range: [0.3, 0.4], cost: 1650 },
+                    { range: [0.4, 0.5], cost: 1650 },
+                    { range: [0.5, 0.6], cost: 1650 },
+                    { range: [0.6, 0.7], cost: 1650 },
+                    { range: [0.7, 0.8], cost: 1650 },
+                    { range: [0.8, 0.9], cost: 1650 },
+                    { range: [0.9, 1], cost: 1650 },
+                    { range: [1, 1.5], cost: 1650 },
+                    { range: [1.5, 2], cost: 1650 },
+                    { range: [2, 3], cost: 1650 },
+                    { range: [3, 4], cost: 1650 },
+                    { range: [4, 5], cost: 1650 },
+                    { range: [5, 6], cost: 1650 },
+                    { range: [6, 7], cost: 1650 },
+                    { range: [7, 8], cost: 1650 },
+                    { range: [8, 9], cost: 1650 },
+                    { range: [9, 10], cost: 1650 },
+                    { range: [10, 11], cost: 1650 },
+                    { range: [11, 12], cost: 1650 },
+                    { range: [12, 13], cost: 1650 },
+                    { range: [13, 14], cost: 1650 },
+                    { range: [14, 15], cost: 1650 }
+                ]
+            },
+            colombia: {
+                freeShippingThreshold: 60000, // COP
+                aTemplate: [
+                    { range: [0, 0.1], cost: 3.99 },
+                    { range: [0.1, 0.2], cost: 5.03 },
+                    { range: [0.2, 0.3], cost: 6.35 },
+                    { range: [0.3, 0.4], cost: 7.85 },
+                    { range: [0.4, 0.5], cost: 9.13 },
+                    { range: [0.5, 0.6], cost: 10.01 },
+                    { range: [0.6, 0.7], cost: 11.22 },
+                    { range: [0.7, 0.8], cost: 11.79 },
+                    { range: [0.8, 0.9], cost: 13.34 },
+                    { range: [0.9, 1], cost: 13.97 },
+                    { range: [1, 1.5], cost: 18.47 },
+                    { range: [1.5, 2], cost: 25.06 },
+                    { range: [2, 3], cost: 46.11 },
+                    { range: [3, 4], cost: 55.18 },
+                    { range: [4, 5], cost: 68.98 },
+                    { range: [5, 6], cost: 82.68 },
+                    { range: [6, 7], cost: 96.38 },
+                    { range: [7, 8], cost: 110.08 },
+                    { range: [8, 9], cost: 123.78 },
+                    { range: [9, 10], cost: 137.48 },
+                    { range: [10, 11], cost: 151.18 },
+                    { range: [11, 12], cost: 164.88 },
+                    { range: [12, 13], cost: 178.58 },
+                    { range: [13, 14], cost: 192.28 },
+                    { range: [14, 15], cost: 205.98 }
+                ],
+                bTemplate: [
+                    { range: [0, 0.1], cost: 7200 }, // COP
+                    { range: [0.1, 0.2], cost: 7200 },
+                    { range: [0.2, 0.3], cost: 7200 },
+                    { range: [0.3, 0.4], cost: 7200 },
+                    { range: [0.4, 0.5], cost: 7200 },
+                    { range: [0.5, 0.6], cost: 7200 },
+                    { range: [0.6, 0.7], cost: 7200 },
+                    { range: [0.7, 0.8], cost: 7200 },
+                    { range: [0.8, 0.9], cost: 7200 },
+                    { range: [0.9, 1], cost: 7200 },
+                    { range: [1, 1.5], cost: 7200 },
+                    { range: [1.5, 2], cost: 7200 },
+                    { range: [2, 3], cost: 7200 },
+                    { range: [3, 4], cost: 7200 },
+                    { range: [4, 5], cost: 7200 },
+                    { range: [5, 6], cost: 7200 },
+                    { range: [6, 7], cost: 7200 },
+                    { range: [7, 8], cost: 7200 },
+                    { range: [8, 9], cost: 7200 },
+                    { range: [9, 10], cost: 7200 },
+                    { range: [10, 11], cost: 7200 },
+                    { range: [11, 12], cost: 7200 },
+                    { range: [12, 13], cost: 7200 },
+                    { range: [13, 14], cost: 7200 },
+                    { range: [14, 15], cost: 7200 }
+                ]
+            }
+        };
+
+        // DOM元素
+        const elements = {
+            purchasePrice: document.getElementById('purchasePrice'),
+            weight: document.getElementById('weight'),
+            commission: document.getElementById('commission'),
+            profit: document.getElementById('profit'),
+            calculateBtn: document.getElementById('calculateBtn'),
+            resetBtn: document.getElementById('resetBtn'),
+            pricingResults: document.getElementById('pricingResults'),
+            profitResults: document.getElementById('profitResults'),
+            calculateProfitBtn: document.getElementById('calculateProfitBtn'),
+            
+            // 汇率输入
+            usdToCny: document.getElementById('usdToCny'),
+            usdToMxn: document.getElementById('usdToMxn'),
+            usdToBrl: document.getElementById('usdToBrl'),
+            usdToClp: document.getElementById('usdToClp'),
+            usdToCop: document.getElementById('usdToCop'),
+            
+            // 汇率切换
+            exchangeRateToggle: document.getElementById('exchangeRateToggle'),
+            exchangeRateContent: document.getElementById('exchangeRateContent'),
+            
+            // 反向计算切换
+            reverseCalculationToggle: document.getElementById('reverseCalculationToggle'),
+            reverseCalculationContent: document.getElementById('reverseCalculationContent'),
+            
+            // 反向计算输入
+            mxnPrice: document.getElementById('mxnPrice'),
+            brlPrice: document.getElementById('brlPrice'),
+            clpPrice: document.getElementById('clpPrice'),
+            copPrice: document.getElementById('copPrice'),
+            
+            // 客服
+            serviceToggle: document.getElementById('serviceToggle'),
+            serviceContent: document.getElementById('serviceContent'),
+            closeService: document.getElementById('closeService'),
+            copyWechat: document.getElementById('copyWechat')
+        };
+
+        // 获取汇率
+        function getExchangeRates() {
+            return {
+                usdToCny: parseFloat(elements.usdToCny.value),
+                usdToMxn: parseFloat(elements.usdToMxn.value),
+                usdToBrl: parseFloat(elements.usdToBrl.value),
+                usdToClp: parseFloat(elements.usdToClp.value),
+                usdToCop: parseFloat(elements.usdToCop.value),
+                
+                // 派生汇率
+                mxnToCny: parseFloat(elements.usdToCny.value) / parseFloat(elements.usdToMxn.value),
+                brlToCny: parseFloat(elements.usdToCny.value) / parseFloat(elements.usdToBrl.value),
+                clpToCny: parseFloat(elements.usdToCny.value) / parseFloat(elements.usdToClp.value),
+                copToCny: parseFloat(elements.usdToCny.value) / parseFloat(elements.usdToCop.value)
+            };
+        }
+
+        // 根据重量和模板获取运费
+        function getShippingCost(weightKg, template, country, rates) {
+            // 查找匹配的重量范围
+            for (let i = 0; i < template.length; i++) {
+                const range = template[i].range;
+                if (weightKg > range[0] && weightKg <= range[1]) {
+                    // 智利和哥伦比亚的b模板是本地货币，需要转换为USD
+                    if ((country === 'chile' || country === 'colombia') && template === shippingTemplates[country].bTemplate) {
+                        const localCost = template[i].cost;
+                        const usdRate = country === 'chile' ? rates.usdToClp : rates.usdToCop;
+                        return localCost / usdRate; // 转换为USD
+                    }
+                    return template[i].cost; // 其他情况都是USD
+                }
+            }
+            return null; // 未找到匹配的重量范围
+        }
+
+        // 检查重量是否在模板范围内
+        function isWeightInTemplate(weightKg, template) {
+            for (let i = 0; i < template.length; i++) {
+                const range = template[i].range;
+                if (weightKg > range[0] && weightKg <= range[1]) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 计算售价
+        function calculatePrice() {
+            // 获取输入值
+            const purchasePrice = parseFloat(elements.purchasePrice.value) || 0;
+            const weightG = parseFloat(elements.weight.value) || 0;
+            const commissionRate = (parseFloat(elements.commission.value) || 20) / 100;
+            const profit = parseFloat(elements.profit.value) || 0;
+            const weightKg = weightG / 1000; // 转换为千克
+            
+            // 验证输入
+            if (isNaN(purchasePrice) || purchasePrice <= 0) {
+                alert('请输入有效的采购价');
+                return;
+            }
+            
+            if (isNaN(weightG) || weightG <= 0) {
+                alert('请输入有效的商品克重');
+                return;
+            }
+            
+            // 获取汇率
+            const rates = getExchangeRates();
+            
+            // 清空之前的结果
+            elements.pricingResults.innerHTML = '';
+            
+            // 计算每个国家的售价
+            const countries = [
+                { id: 'mexico', name: '墨西哥', currency: 'MXN', symbol: '$', rate: rates.usdToMxn },
+                { id: 'brazil', name: '巴西', currency: 'BRL', symbol: 'R$', rate: rates.usdToBrl },
+                { id: 'chile', name: '智利', currency: 'CLP', symbol: '$', rate: rates.usdToClp },
+                { id: 'colombia', name: '哥伦比亚', currency: 'COP', symbol: '$', rate: rates.usdToCop }
+            ];
+            
+            let resultsHtml = '';
+            
+            countries.forEach(country => {
+                const templateData = shippingTemplates[country.id];
+                const threshold = templateData.freeShippingThreshold;
+                
+                // 先尝试使用b模板计算初始价格
+                let initialShippingCostUsd = getShippingCost(weightKg, templateData.bTemplate, country.id, rates);
+                
+                // 如果重量不在b模板范围内，使用a模板
+                if (initialShippingCostUsd === null) {
+                    initialShippingCostUsd = getShippingCost(weightKg, templateData.aTemplate, country.id, rates);
+                    
+                    // 如果重量也不在a模板范围内，无法发货
+                    if (initialShippingCostUsd === null) {
+                        resultsHtml += `
+                            <div class="border border-gray-200 rounded-lg p-5 card-hover">
+                                <div class="flex justify-between items-start mb-3">
+                                    <h3 class="font-semibold text-lg">${country.name}</h3>
+                                    <span class="text-danger font-medium">无法发货</span>
+                                </div>
+                                <p class="text-gray-600">商品重量超出可发货范围</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                }
+                
+                // 计算初始售价（USD）
+                const totalCostRmb = purchasePrice + profit;
+                const totalCostUsd = totalCostRmb / rates.usdToCny;
+                const initialPriceUsd = (totalCostUsd + initialShippingCostUsd) / (1 - commissionRate);
+                const initialPriceLocal = initialPriceUsd * country.rate;
+                
+                // 确定最终使用的模板
+                let finalTemplate, finalShippingCostUsd, finalPriceUsd, finalPriceLocal;
+                
+                if (initialPriceLocal >= threshold) {
+                    // 高于门槛，使用a模板
+                    finalShippingCostUsd = getShippingCost(weightKg, templateData.aTemplate, country.id, rates);
+                    
+                    // 检查a模板是否支持该重量
+                    if (finalShippingCostUsd === null) {
+                        resultsHtml += `
+                            <div class="border border-gray-200 rounded-lg p-5 card-hover">
+                                <div class="flex justify-between items-start mb-3">
+                                    <h3 class="font-semibold text-lg">${country.name}</h3>
+                                    <span class="text-danger font-medium">无法发货</span>
+                                </div>
+                                <p class="text-gray-600">商品重量超出可发货范围</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    finalPriceUsd = (totalCostUsd + finalShippingCostUsd) / (1 - commissionRate);
+                    finalPriceLocal = finalPriceUsd * country.rate;
+                    finalTemplate = 'a';
+                } else {
+                    // 低于门槛，使用b模板
+                    // 再次检查b模板是否支持该重量
+                    if (!isWeightInTemplate(weightKg, templateData.bTemplate)) {
+                        // 不在b模板范围内，切换到a模板
+                        finalShippingCostUsd = getShippingCost(weightKg, templateData.aTemplate, country.id, rates);
+                        
+                        if (finalShippingCostUsd === null) {
+                            resultsHtml += `
+                                <div class="border border-gray-200 rounded-lg p-5 card-hover">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <h3 class="font-semibold text-lg">${country.name}</h3>
+                                        <span class="text-danger font-medium">无法发货</span>
+                                    </div>
+                                    <p class="text-gray-600">商品重量超出可发货范围</p>
+                                </div>
+                            `;
+                            return;
+                        }
+                        
+                        finalPriceUsd = (totalCostUsd + finalShippingCostUsd) / (1 - commissionRate);
+                        finalPriceLocal = finalPriceUsd * country.rate;
+                        finalTemplate = 'a (自动切换，b模板不支持该重量)';
+                    } else {
+                        finalShippingCostUsd = initialShippingCostUsd;
+                        finalPriceUsd = initialPriceUsd;
+                        finalPriceLocal = initialPriceLocal;
+                        finalTemplate = 'b';
+                    }
+                }
+                
+                // 添加到结果HTML
+                resultsHtml += `
+                    <div class="border border-gray-200 rounded-lg p-5 card-hover">
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-semibold text-lg">${country.name}</h3>
+                            <span class="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">模板 ${finalTemplate}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-gray-500 text-sm">售价：</span>
+                            <span class="text-2xl font-bold text-gray-800">${country.symbol} ${finalPriceLocal.toFixed(2)}</span>
+                            <span class="text-gray-400 text-sm ml-2">${country.currency}</span>
+                        </div>
+                        <div class="text-gray-500 text-sm mb-3">
+                            <span>约合 USD: </span>
+                            <span class="font-medium">$${finalPriceUsd.toFixed(2)}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div class="bg-gray-50 p-2 rounded">
+                                <span class="text-gray-500">运费：</span>
+                                <span class="font-medium">$${finalShippingCostUsd.toFixed(2)} USD</span>
+                            </div>
+                            <div class="bg-gray-50 p-2 rounded">
+                                <span class="text-gray-500">佣金：</span>
+                                <span class="font-medium">${(commissionRate * 100).toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 显示结果
+            elements.pricingResults.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    ${resultsHtml}
+                </div>
+            `;
+            
+            // 计算后显示客服
+            setTimeout(() => {
+                elements.serviceContent.classList.remove('hidden');
+            }, 2000);
+        }
+
+        // 计算利润（反向计算）
+        function calculateProfit() {
+            // 获取输入值
+            const purchasePrice = parseFloat(elements.purchasePrice.value) || 0;
+            const weightG = parseFloat(elements.weight.value) || 0;
+            const commissionRate = (parseFloat(elements.commission.value) || 20) / 100;
+            const weightKg = weightG / 1000; // 转换为千克
+            
+            // 获取汇率
+            const rates = getExchangeRates();
+            
+            // 验证基本输入
+            if (isNaN(purchasePrice) || purchasePrice <= 0) {
+                alert('请输入有效的采购价');
+                return;
+            }
+            
+            if (isNaN(weightG) || weightG <= 0) {
+                alert('请输入有效的商品克重');
+                return;
+            }
+            
+            // 获取各个国家的售价输入
+            const prices = {
+                mexico: parseFloat(elements.mxnPrice.value) || null,
+                brazil: parseFloat(elements.brlPrice.value) || null,
+                chile: parseFloat(elements.clpPrice.value) || null,
+                colombia: parseFloat(elements.copPrice.value) || null
+            };
+            
+            // 检查是否至少输入了一个国家的售价
+            const hasPriceInput = Object.values(prices).some(price => price !== null && !isNaN(price) && price > 0);
+            if (!hasPriceInput) {
+                alert('请至少输入一个国家的售价');
+                return;
+            }
+            
+            // 清空之前的结果
+            elements.profitResults.innerHTML = '';
+            
+            // 计算每个国家的利润
+            const countries = [
+                { id: 'mexico', name: '墨西哥', currency: 'MXN', rate: rates.usdToMxn, price: prices.mexico },
+                { id: 'brazil', name: '巴西', currency: 'BRL', rate: rates.usdToBrl, price: prices.brazil },
+                { id: 'chile', name: '智利', currency: 'CLP', rate: rates.usdToClp, price: prices.chile },
+                { id: 'colombia', name: '哥伦比亚', currency: 'COP', rate: rates.usdToCop, price: prices.colombia }
+            ];
+            
+            let resultsHtml = '';
+            
+            countries.forEach(country => {
+                if (country.price === null || isNaN(country.price) || country.price <= 0) {
+                    return; // 跳过未输入的国家
+                }
+                
+                const templateData = shippingTemplates[country.id];
+                const threshold = templateData.freeShippingThreshold;
+                const priceLocal = country.price;
+                const priceUsd = priceLocal / country.rate;
+                
+                // 确定使用的模板
+                let template, shippingCostUsd;
+                
+                if (priceLocal >= threshold) {
+                    // 高于门槛，使用a模板
+                    shippingCostUsd = getShippingCost(weightKg, templateData.aTemplate, country.id, rates);
+                    template = 'a';
+                } else {
+                    // 低于门槛，尝试使用b模板
+                    shippingCostUsd = getShippingCost(weightKg, templateData.bTemplate, country.id, rates);
+                    
+                    // 如果重量不在b模板范围内，切换到a模板
+                    if (shippingCostUsd === null) {
+                        shippingCostUsd = getShippingCost(weightKg, templateData.aTemplate, country.id, rates);
+                        template = 'a (自动切换，b模板不支持该重量)';
+                    } else {
+                        template = 'b';
+                    }
+                }
+                
+                // 检查是否支持该重量
+                if (shippingCostUsd === null) {
+                    resultsHtml += `
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <div class="font-medium mb-1">${country.name}</div>
+                            <p class="text-danger text-sm">无法发货：商品重量超出可发货范围</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // 计算利润
+                const commissionUsd = priceUsd * commissionRate;
+                const totalCostUsd = priceUsd - commissionUsd - shippingCostUsd;
+                const profitRmb = (totalCostUsd * rates.usdToCny) - purchasePrice;
+                
+                // 添加到结果HTML
+                resultsHtml += `
+                    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="font-medium">${country.name}</div>
+                            <span class="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">模板 ${template}</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-1">
+                            售价：${priceLocal.toFixed(2)} ${country.currency} (约 $${priceUsd.toFixed(2)} USD)
+                        </div>
+                        <div class="font-bold text-lg ${profitRmb >= 0 ? 'text-success' : 'text-danger'} mb-1">
+                            ${profitRmb >= 0 ? '+' : ''}${profitRmb.toFixed(2)} RMB
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            运费: $${shippingCostUsd.toFixed(2)} USD | 佣金: $${commissionUsd.toFixed(2)} USD
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 显示结果
+            elements.profitResults.innerHTML = resultsHtml;
+        }
+
+        // 重置表单
+        function resetForm() {
+            elements.purchasePrice.value = '';
+            elements.weight.value = '';
+            elements.commission.value = '20';
+            elements.profit.value = '0';
+            elements.pricingResults.innerHTML = `
+                <div class="text-center text-gray-500 py-12">
+                    <i class="fa fa-calculator text-4xl mb-3 opacity-30"></i>
+                    <p>请输入商品信息并点击"计算售价"按钮</p>
+                </div>
+            `;
+            elements.profitResults.innerHTML = '';
+            elements.mxnPrice.value = '';
+            elements.brlPrice.value = '';
+            elements.clpPrice.value = '';
+            elements.copPrice.value = '';
+        }
+
+        // 切换汇率设置显示
+        function toggleExchangeRates() {
+            const isHidden = elements.exchangeRateContent.classList.contains('hidden');
+            elements.exchangeRateContent.classList.toggle('hidden');
+            elements.exchangeRateToggle.querySelector('i').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0)';
+        }
+
+        // 切换反向计算显示
+        function toggleReverseCalculation() {
+            const isHidden = elements.reverseCalculationContent.classList.contains('hidden');
+            elements.reverseCalculationContent.classList.toggle('hidden');
+            elements.reverseCalculationToggle.querySelector('i').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0)';
+        }
+
+        // 切换客服显示
+        function toggleService() {
+            elements.serviceContent.classList.toggle('hidden');
+        }
+
+        // 复制微信号
+        function copyWechat() {
+            navigator.clipboard.writeText('realanls').then(() => {
+                const originalText = elements.copyWechat.innerHTML;
+                elements.copyWechat.innerHTML = '<i class="fa fa-check"></i> 已复制';
+                elements.copyWechat.classList.add('text-success');
+                
+                setTimeout(() => {
+                    elements.copyWechat.innerHTML = originalText;
+                    elements.copyWechat.classList.remove('text-success');
+                }, 2000);
+            });
+        }
+
+        // 事件监听
+        elements.calculateBtn.addEventListener('click', calculatePrice);
+        elements.resetBtn.addEventListener('click', resetForm);
+        elements.calculateProfitBtn.addEventListener('click', calculateProfit);
+        elements.exchangeRateToggle.addEventListener('click', toggleExchangeRates);
+        elements.reverseCalculationToggle.addEventListener('click', toggleReverseCalculation);
+        elements.serviceToggle.addEventListener('click', toggleService);
+        elements.closeService.addEventListener('click', toggleService);
+        elements.copyWechat.addEventListener('click', copyWechat);
+
+        // 初始化 - 默认展开定价区，其他收起
+        elements.reverseCalculationContent.classList.add('hidden');
+        elements.exchangeRateContent.classList.add('hidden');
+    </script>
+</body>
+</html>
+    
